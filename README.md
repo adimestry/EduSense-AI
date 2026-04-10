@@ -1,20 +1,52 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+EduSense AI  
+Navigate the Universe of Knowledge
 
-# Run and deploy your AI Studio app
+EduSense AI is an AI-powered academic assistant that helps students, researchers, and universities analyze documents, simplify complex content, and discover related research — all in one place.
 
-This contains everything you need to run your app locally.
+---
 
-View your app in AI Studio: https://ai.studio/apps/d3bda7f0-2a12-4102-a072-8f2e3f646df9
+🚀 Features
 
-## Run Locally
+🧠 Core AI
+- 📄 Multi-format input (PDF, URL, YouTube, Text)
+- 📊 6-section academic summary
+- 💬 Interactive Q&A chat with document
 
-**Prerequisites:**  Node.js
+💡 Smart Features
+- 🔑 Keyword extraction
+- 🌐 AI-powered research suggestions (Google Scholar, arXiv, YouTube)
+- 🌍 Language Humanization (Academic → ELI5)
 
+📊 Visual Features
+- 🗺️ Mind map / citation network visualization
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+ 🎓 Student Features
+- 📝 Question paper analysis
+- 📚 Study recommendations
+
+ ⚖️ Advanced Features
+- 📑 Side-by-side document comparison
+- 📚 Bibliography generator (APA / MLA / IEEE)
+
+ 📤 Utility
+- 📥 Export (PDF / JSON / Markdown)
+
+ 🎨 UI
+- 🌌 Constellation-themed interface (space-inspired design)
+
+---
+ 🧠 How It Works
+
+1. User uploads a document (PDF / URL / YouTube / Text)
+2. Content is sent to AI (Claude API)
+3. AI processes and generates:
+   - Summary
+   - Keywords
+   - Suggestions
+4. Results are displayed in an interactive UI
+5. User can ask questions, simplify content, or explore more
+
+---
+
+## 🔄 Data Flow
+
