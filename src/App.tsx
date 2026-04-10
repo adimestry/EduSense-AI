@@ -3,7 +3,8 @@ import {
   FileText, Upload, Brain, Key, Search, MessageSquare, 
   Settings, Zap, Share2, Download, Copy, Sparkles, 
   ChevronRight, BookOpen, Target, Microscope, AlertCircle, 
-  CheckCircle2, Globe, GraduationCap, Info, HelpCircle, History, Trash2, Clock
+  CheckCircle2, Globe, GraduationCap, Info, HelpCircle, History, Trash2, Clock,
+  LogOut, User as UserIcon, LogIn, UserCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as d3 from 'd3';
@@ -26,6 +27,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 import { analyzeDocument, chatWithDocument, getRelatedResearch, AnalysisResult } from './lib/gemini';
 import { extractTextFromPDF } from './lib/pdf';
+import { auth, googleProvider, signInWithPopup, signOut, onAuthStateChanged, User } from './lib/firebase';
 
 // --- Types ---
 
@@ -167,6 +169,8 @@ const MindMap = ({ keywords }: { keywords: { word: string; definition: string }[
 // --- Main App ---
 
 export default function App() {
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [file, setFile] = useState<File | null>(null);
   const [text, setText] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -190,6 +194,14 @@ export default function App() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setIsAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -232,6 +244,27 @@ export default function App() {
   const deleteFromHistory = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setHistory(prev => prev.filter(item => item.id !== id));
+  };
+
+  const handleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (err) {
+      console.error("Login failed:", err);
+      setError("Failed to sign in with Google.");
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setAnalysis(null);
+      setFile(null);
+      setText('');
+      setChatHistory([]);
+    } catch (err) {
+      console.error("Logout failed:", err);
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -357,29 +390,106 @@ export default function App() {
             </div>
             
             <div className="flex items-center gap-4">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="text-white/70 hover:text-white font-medium"
-                onClick={() => setIsHistoryOpen(true)}
-              >
-                <History className="w-4 h-4 mr-2" />
-                History
-              </Button>
-              <Button variant="ghost" size="sm" className="text-white/70 hover:text-white font-medium">
-                <Share2 className="w-4 h-4 mr-2" />
-                Share
-              </Button>
-              <Button variant="outline" size="sm" className="border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/10 font-medium">
-                <Download className="w-4 h-4 mr-2" />
-                Export Analysis
-              </Button>
+              {user && (
+                <>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="text-white/70 hover:text-white font-medium"
+                    onClick={() => setIsHistoryOpen(true)}
+                  >
+                    <History className="w-4 h-4 mr-2" />
+                    History
+                  </Button>
+                  <Button variant="ghost" size="sm" className="text-white/70 hover:text-white font-medium">
+                    <Share2 className="w-4 h-4 mr-2" />
+                    Share
+                  </Button>
+                  <Button variant="outline" size="sm" className="border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/10 font-medium">
+                    <Download className="w-4 h-4 mr-2" />
+                    Export Analysis
+                  </Button>
+                  <Separator orientation="vertical" className="h-6 bg-white/10" />
+                  <div className="flex items-center gap-3 pl-2">
+                    <div className="text-right hidden sm:block">
+                      <p className="text-xs font-bold text-white leading-none">{user.displayName}</p>
+                      <p className="text-[10px] text-slate-500 mt-1">Researcher</p>
+                    </div>
+                    <Tooltip>
+                      <TooltipTrigger 
+                        render={
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={handleLogout}
+                            className="rounded-full hover:bg-red-500/10 hover:text-red-400 text-slate-400"
+                          >
+                            <LogOut className="w-4 h-4" />
+                          </Button>
+                        }
+                      />
+                      <TooltipContent>Sign Out</TooltipContent>
+                    </Tooltip>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </header>
 
         <main className="container mx-auto px-4 py-8 relative z-10">
-          {!analysis && !isAnalyzing ? (
+          {isAuthLoading ? (
+            <div className="flex flex-col items-center justify-center min-h-[60vh]">
+              <motion.div 
+                animate={{ rotate: 360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                className="w-12 h-12 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full mb-4"
+              />
+              <p className="text-indigo-300 font-medium animate-pulse">Initializing Secure Session...</p>
+            </div>
+          ) : !user ? (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="max-w-md mx-auto mt-20"
+            >
+              <Card className="glass-card border-none rounded-3xl overflow-hidden p-8 text-center">
+                <div className="w-20 h-20 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-indigo-500/40 transform -rotate-6">
+                  <Brain className="w-10 h-10 text-white" />
+                </div>
+                <h2 className="text-3xl font-serif font-bold mb-4">Welcome to EduSense AI</h2>
+                <p className="text-slate-400 mb-10 leading-relaxed">Sign in to access your academic intelligence dashboard and secure your research history.</p>
+                
+                <Button 
+                  onClick={handleLogin}
+                  className="w-full h-14 bg-white text-slate-950 hover:bg-slate-100 font-bold text-lg rounded-2xl gap-3 shadow-xl shadow-white/5"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
+                    <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                  </svg>
+                  Continue with Google
+                </Button>
+                
+                <div className="mt-10 pt-8 border-t border-white/5 flex items-center justify-center gap-6 opacity-40 grayscale">
+                  <div className="flex flex-col items-center">
+                    <Globe className="w-5 h-5 mb-1" />
+                    <span className="text-[8px] font-bold uppercase tracking-widest">Global Access</span>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <Key className="w-5 h-5 mb-1" />
+                    <span className="text-[8px] font-bold uppercase tracking-widest">Secure Auth</span>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <Zap className="w-5 h-5 mb-1" />
+                    <span className="text-[8px] font-bold uppercase tracking-widest">Instant Sync</span>
+                  </div>
+                </div>
+              </Card>
+            </motion.div>
+          ) : !analysis && !isAnalyzing ? (
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -645,6 +755,89 @@ export default function App() {
                     </CardContent>
                   </Card>
                 </div>
+
+                {/* Attendance Analysis Section */}
+                <AnimatePresence>
+                  {analysis?.attendanceAnalysis && analysis.attendanceAnalysis.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-6"
+                    >
+                      <Card className="glass-card border-none">
+                        <CardHeader>
+                          <CardTitle className="text-sm flex items-center gap-2">
+                            <UserCheck className="w-4 h-4 text-emerald-400" />
+                            Student Attendance Analyzer
+                          </CardTitle>
+                          <CardDescription className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
+                            Automated Attendance Breakdown
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                          <div className="h-[300px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie
+                                  data={analysis.attendanceAnalysis}
+                                  cx="50%"
+                                  cy="50%"
+                                  innerRadius={60}
+                                  outerRadius={90}
+                                  paddingAngle={8}
+                                  dataKey="percentage"
+                                  nameKey="status"
+                                  stroke="none"
+                                >
+                                  {analysis.attendanceAnalysis.map((entry, index) => (
+                                    <Cell 
+                                      key={`cell-${index}`} 
+                                      fill={entry.status.toLowerCase().includes('present') ? '#10b981' : entry.status.toLowerCase().includes('absent') ? '#f43f5e' : '#fbbf24'} 
+                                    />
+                                  ))}
+                                </Pie>
+                                <RechartsTooltip 
+                                  contentStyle={{ backgroundColor: '#020617', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', backdropFilter: 'blur(12px)' }}
+                                  itemStyle={{ color: '#f8fafc', fontSize: '12px' }}
+                                />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </div>
+                          <div className="space-y-4">
+                            {analysis.attendanceAnalysis.map((item, i) => (
+                              <div key={i} className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5">
+                                <div className="flex items-center gap-3">
+                                  <div 
+                                    className="w-3 h-3 rounded-full shadow-[0_0_8px_currentColor]" 
+                                    style={{ color: item.status.toLowerCase().includes('present') ? '#10b981' : item.status.toLowerCase().includes('absent') ? '#f43f5e' : '#fbbf24' }} 
+                                  />
+                                  <span className="text-sm font-medium text-slate-200">{item.status}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-lg font-bold text-white">{item.percentage}%</span>
+                                  <div className="w-12 h-1 bg-white/5 rounded-full overflow-hidden">
+                                    <div 
+                                      className="h-full transition-all duration-1000" 
+                                      style={{ 
+                                        width: `${item.percentage}%`,
+                                        backgroundColor: item.status.toLowerCase().includes('present') ? '#10b981' : item.status.toLowerCase().includes('absent') ? '#f43f5e' : '#fbbf24'
+                                      }} 
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                            <div className="pt-4 border-t border-white/5">
+                              <p className="text-[10px] text-slate-500 italic leading-relaxed">
+                                * Attendance data extracted automatically from the document structure. Percentages represent the relative distribution of student statuses.
+                              </p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               {/* Right Column: Keywords, Suggestions, Chat */}

@@ -25,6 +25,7 @@ export interface AnalysisResult {
   keywords: { word: string; definition: string }[];
   humanizedExplanation: string;
   topicDistribution: { topic: string; percentage: number }[];
+  attendanceAnalysis?: { status: string; percentage: number }[];
   difficultyLevel: "Beginner" | "Intermediate" | "Advanced";
   studyResources: string[];
 }
@@ -50,7 +51,9 @@ export async function analyzeDocument(input: string | File, length: number, mode
         {
           text: `Analyze the attached document and provide a structured output in JSON format.
           Summary Length: Approximately ${length} words.
-          Language Mode: ${mode} (Academic, Simple, or ELI5)`
+          Language Mode: ${mode} (Academic, Simple, or ELI5)
+          
+          Special Instruction: If this document contains student attendance records or data, provide a breakdown in the 'attendanceAnalysis' field (e.g., Present, Absent, Late). If no attendance data is found, provide a generic distribution based on document themes or leave it empty.`
         }
       ]
     };
@@ -111,13 +114,24 @@ export async function analyzeDocument(input: string | File, length: number, mode
               required: ["topic", "percentage"]
             }
           },
+          attendanceAnalysis: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                status: { type: Type.STRING },
+                percentage: { type: Type.NUMBER }
+              },
+              required: ["status", "percentage"]
+            }
+          },
           difficultyLevel: { type: Type.STRING, enum: ["Beginner", "Intermediate", "Advanced"] },
           studyResources: { type: Type.ARRAY, items: { type: Type.STRING } }
         },
         required: [
           "summary", "researchObjective", "methodology", "keyFindings", 
           "dataEvidence", "limitationsGaps", "conclusionFutureWork", 
-          "keywords", "humanizedExplanation", "topicDistribution", 
+          "keywords", "humanizedExplanation", "topicDistribution", "attendanceAnalysis",
           "difficultyLevel", "studyResources"
         ]
       }
