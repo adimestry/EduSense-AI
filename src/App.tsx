@@ -3,7 +3,7 @@ import {
   FileText, Upload, Brain, Key, Search, MessageSquare, 
   Settings, Zap, Share2, Download, Copy, Sparkles, 
   ChevronRight, BookOpen, Target, Microscope, AlertCircle, 
-  CheckCircle2, Globe, GraduationCap, Info, HelpCircle
+  CheckCircle2, Globe, GraduationCap, Info, HelpCircle, History, Trash2, Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as d3 from 'd3';
@@ -26,6 +26,18 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 import { analyzeDocument, chatWithDocument, getRelatedResearch, AnalysisResult } from './lib/gemini';
 import { extractTextFromPDF } from './lib/pdf';
+
+// --- Types ---
+
+interface HistoryItem {
+  id: string;
+  title: string;
+  timestamp: number;
+  analysis: AnalysisResult;
+  relatedResearch: any[];
+  sourceInfo: string | { name: string; type: string };
+  analyzedSource: string | File; // Note: File won't persist in localStorage, we'll handle this
+}
 
 // --- Components ---
 
@@ -170,6 +182,11 @@ export default function App() {
   const [urlInput, setUrlInput] = useState('');
   const [uploadType, setUploadType] = useState<'file' | 'link'>('file');
   const [analyzedSource, setAnalyzedSource] = useState<File | string | null>(null);
+  const [history, setHistory] = useState<HistoryItem[]>(() => {
+    const saved = localStorage.getItem('edusense_history');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -177,6 +194,45 @@ export default function App() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory]);
+
+  useEffect(() => {
+    localStorage.setItem('edusense_history', JSON.stringify(history));
+  }, [history]);
+
+  const saveToHistory = (title: string, analysis: AnalysisResult, research: any[], source: any) => {
+    const newItem: HistoryItem = {
+      id: Math.random().toString(36).substr(2, 9),
+      title,
+      timestamp: Date.now(),
+      analysis,
+      relatedResearch: research,
+      sourceInfo: source instanceof File ? { name: source.name, type: source.type } : source,
+      analyzedSource: source instanceof File ? "" : source // Can't easily store File in localStorage
+    };
+    setHistory(prev => {
+      const filtered = prev.filter(item => item.title !== title);
+      return [newItem, ...filtered].slice(0, 10);
+    });
+  };
+
+  const loadFromHistory = (item: HistoryItem) => {
+    setAnalysis(item.analysis);
+    setRelatedResearch(item.relatedResearch);
+    setAnalyzedSource(item.analyzedSource || null);
+    if (typeof item.sourceInfo === 'string') {
+      setUrlInput(item.sourceInfo);
+      setUploadType('link');
+    } else {
+      setFile(null); // We don't have the original File object anymore
+      setUploadType('file');
+    }
+    setIsHistoryOpen(false);
+  };
+
+  const deleteFromHistory = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setHistory(prev => prev.filter(item => item.id !== id));
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -203,6 +259,7 @@ export default function App() {
         setIsFetchingResearch(true);
         const research = await getRelatedResearch(result.keywords.slice(0, 3).map(k => k.word));
         setRelatedResearch(research);
+        saveToHistory(selectedFile.name, result, research, selectedFile);
       } catch (err) {
         console.error("Analysis failed:", err);
         setError(err instanceof Error ? err.message : "An unexpected error occurred during analysis.");
@@ -233,6 +290,7 @@ export default function App() {
       setIsFetchingResearch(true);
       const research = await getRelatedResearch(result.keywords.slice(0, 3).map(k => k.word));
       setRelatedResearch(research);
+      saveToHistory(urlInput, result, research, urlInput);
     } catch (err) {
       console.error("URL Analysis failed:", err);
       setError(err instanceof Error ? err.message : "An unexpected error occurred during URL analysis.");
@@ -299,6 +357,15 @@ export default function App() {
             </div>
             
             <div className="flex items-center gap-4">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="text-white/70 hover:text-white font-medium"
+                onClick={() => setIsHistoryOpen(true)}
+              >
+                <History className="w-4 h-4 mr-2" />
+                History
+              </Button>
               <Button variant="ghost" size="sm" className="text-white/70 hover:text-white font-medium">
                 <Share2 className="w-4 h-4 mr-2" />
                 Share
@@ -718,6 +785,91 @@ export default function App() {
             </div>
           )}
         </main>
+
+        {/* History Panel */}
+        <AnimatePresence>
+          {isHistoryOpen && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsHistoryOpen(false)}
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]"
+              />
+              <motion.div
+                initial={{ x: '100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '100%' }}
+                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-slate-950 border-l border-white/10 z-[101] shadow-2xl flex flex-col"
+              >
+                <div className="p-6 border-b border-white/10 flex items-center justify-between bg-white/5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+                      <History className="w-4 h-4 text-indigo-400" />
+                    </div>
+                    <h2 className="text-xl font-serif font-bold">Research History</h2>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => setIsHistoryOpen(false)} className="rounded-full hover:bg-white/10">
+                    <ChevronRight className="w-5 h-5" />
+                  </Button>
+                </div>
+
+                <ScrollArea className="flex-1">
+                  <div className="p-6 space-y-4">
+                    {history.length === 0 ? (
+                      <div className="text-center py-20">
+                        <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4 border border-white/5">
+                          <Clock className="w-8 h-8 text-slate-600" />
+                        </div>
+                        <p className="text-slate-500 font-serif italic">No recent research history found.</p>
+                      </div>
+                    ) : (
+                      history.map((item) => (
+                        <div 
+                          key={item.id}
+                          onClick={() => loadFromHistory(item)}
+                          className="group p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-indigo-500/30 transition-all cursor-pointer relative"
+                        >
+                          <div className="flex justify-between items-start mb-2">
+                            <h3 className="text-sm font-serif font-bold text-slate-200 group-hover:text-indigo-400 transition-colors line-clamp-1 pr-8">
+                              {item.title}
+                            </h3>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-6 w-6 text-slate-600 hover:text-red-400 hover:bg-red-400/10 absolute top-4 right-4"
+                              onClick={(e) => deleteFromHistory(item.id, e)}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                          <div className="flex items-center gap-3 text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {new Date(item.timestamp).toLocaleDateString()}
+                            </span>
+                            <Separator orientation="vertical" className="h-2 bg-white/10" />
+                            <span className="text-indigo-400/70">
+                              {typeof item.sourceInfo === 'string' ? 'URL' : 'PDF'}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+                
+                <div className="p-6 border-t border-white/10 bg-white/5 text-center">
+                  <p className="text-[10px] text-slate-600 uppercase tracking-widest font-bold">
+                    Showing last {history.length} research sessions
+                  </p>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
 
         {/* Footer Info */}
         <footer className="fixed bottom-0 left-0 right-0 z-20 bg-space-bg/90 backdrop-blur-2xl border-t border-white/5 py-4">
